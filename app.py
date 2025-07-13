@@ -3,7 +3,6 @@ import pandas as pd
 from io import BytesIO
 from datetime import datetime
 import json
-import sqlite3
 import os
 import time
 
@@ -23,78 +22,232 @@ except ImportError:
 
 st.set_page_config(layout="wide", page_title="근골격계 유해요인조사")
 
-# 데이터베이스 초기화
-def init_db():
-    conn = sqlite3.connect('musculoskeletal_survey.db')
-    conn.execute("PRAGMA journal_mode=WAL")  # 동시성 개선
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS survey_data
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  session_id TEXT UNIQUE,
-                  workplace TEXT,
-                  data TEXT,
-                  created_at TIMESTAMP,
-                  updated_at TIMESTAMP)''')
-    conn.commit()
-    conn.close()
+# Excel 파일 저장 디렉토리 생성
+SAVE_DIR = "saved_sessions"
+if not os.path.exists(SAVE_DIR):
+    os.makedirs(SAVE_DIR)
 
-# 최적화된 데이터 저장 함수
-def save_to_db(session_id, data, workplace=None):
-    conn = sqlite3.connect('musculoskeletal_survey.db')
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    
-    c = conn.cursor()
+# Excel 파일로 데이터 저장 함수
+def save_to_excel(session_id, workplace=None):
+    """세션 데이터를 Excel 파일로 저장"""
     try:
-        c.execute('BEGIN TRANSACTION')
-        c.execute('''INSERT OR REPLACE INTO survey_data 
-                     (session_id, workplace, data, created_at, updated_at) 
-                     VALUES (?, ?, ?, datetime('now'), datetime('now'))''', 
-                     (session_id, workplace, json.dumps(data, ensure_ascii=False)))
-        conn.commit()
+        filename = os.path.join(SAVE_DIR, f"{session_id}.xlsx")
+        
+        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+            # 메타데이터 저장
+            metadata = {
+                "session_id": session_id,
+                "workplace": workplace or st.session_state.get("workplace", ""),
+                "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "사업장명": st.session_state.get("사업장명", ""),
+                "소재지": st.session_state.get("소재지", ""),
+                "업종": st.session_state.get("업종", ""),
+                "예비조사": str(st.session_state.get("예비조사", "")),
+                "본조사": str(st.session_state.get("본조사", "")),
+                "수행기관": st.session_state.get("수행기관", ""),
+                "성명": st.session_state.get("성명", "")
+            }
+            
+            # 메타데이터를 DataFrame으로 변환
+            metadata_df = pd.DataFrame([metadata])
+            metadata_df.to_excel(writer, sheet_name='메타데이터', index=False)
+            
+            # 체크리스트 저장
+            if "checklist_df" in st.session_state and not st.session_state["checklist_df"].empty:
+                st.session_state["checklist_df"].to_excel(writer, sheet_name='체크리스트', index=False)
+            
+            # 작업명 목록 가져오기
+            작업명_목록 = []
+            if not st.session_state.get("checklist_df", pd.DataFrame()).empty:
+                작업명_목록 = st.session_state["checklist_df"]["작업명"].dropna().unique().tolist()
+            
+            # 각 작업별 데이터 저장
+            for 작업명 in 작업명_목록:
+                # 유해요인조사표 데이터
+                조사표_data = {
+                    "조사일시": st.session_state.get(f"조사일시_{작업명}", ""),
+                    "부서명": st.session_state.get(f"부서명_{작업명}", ""),
+                    "조사자": st.session_state.get(f"조사자_{작업명}", ""),
+                    "작업공정명": st.session_state.get(f"작업공정명_{작업명}", ""),
+                    "작업명": st.session_state.get(f"작업명_{작업명}", "")
+                }
+                
+                # 작업장 상황조사
+                for 항목 in ["작업설비", "작업량", "작업속도", "업무변화"]:
+                    조사표_data[f"{항목}_상태"] = st.session_state.get(f"{항목}_상태_{작업명}", "")
+                    조사표_data[f"{항목}_세부사항"] = st.session_state.get(f"{항목}_감소_시작_{작업명}", "") or \
+                                                     st.session_state.get(f"{항목}_증가_시작_{작업명}", "") or \
+                                                     st.session_state.get(f"{항목}_기타_내용_{작업명}", "")
+                
+                조사표_df = pd.DataFrame([조사표_data])
+                sheet_name = f'조사표_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                조사표_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                
+                # 작업조건조사 데이터
+                작업조건_key = f"작업조건_data_{작업명}"
+                if 작업조건_key in st.session_state and isinstance(st.session_state[작업조건_key], pd.DataFrame):
+                    sheet_name = f'작업조건_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                    st.session_state[작업조건_key].to_excel(writer, sheet_name=sheet_name, index=False)
+                
+                # 3단계 데이터
+                단계3_data = {
+                    "작업명": st.session_state.get(f"3단계_작업명_{작업명}", ""),
+                    "근로자수": st.session_state.get(f"3단계_근로자수_{작업명}", "")
+                }
+                
+                사진개수 = st.session_state.get(f"사진개수_{작업명}", 3)
+                for i in range(사진개수):
+                    단계3_data[f"사진{i+1}_설명"] = st.session_state.get(f"사진_{i+1}_설명_{작업명}", "")
+                
+                # 원인분석 데이터
+                원인분석_key = f"원인분석_항목_{작업명}"
+                if 원인분석_key in st.session_state:
+                    원인분석_df = pd.DataFrame(st.session_state[원인분석_key])
+                    sheet_name = f'원인분석_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                    원인분석_df.to_excel(writer, sheet_name=sheet_name, index=False)
+            
+            # 정밀조사 데이터
+            if "정밀조사_목록" in st.session_state:
+                for 조사명 in st.session_state["정밀조사_목록"]:
+                    정밀_data = {
+                        "작업공정명": st.session_state.get(f"정밀_작업공정명_{조사명}", ""),
+                        "작업명": st.session_state.get(f"정밀_작업명_{조사명}", "")
+                    }
+                    
+                    원인분석_key = f"정밀_원인분석_data_{조사명}"
+                    if 원인분석_key in st.session_state and isinstance(st.session_state[원인분석_key], pd.DataFrame):
+                        sheet_name = f'정밀_{조사명}'.replace('/', '_').replace('\\', '_')[:31]
+                        정밀_df = pd.DataFrame([정밀_data])
+                        정밀_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                        
+                        # 원인분석 데이터도 같은 시트에 추가
+                        st.session_state[원인분석_key].to_excel(
+                            writer, 
+                            sheet_name=sheet_name, 
+                            startrow=3, 
+                            index=False
+                        )
+            
+            # 증상조사 분석 데이터
+            증상조사_시트 = {
+                "기초현황": "기초현황_data_저장",
+                "작업기간": "작업기간_data_저장",
+                "육체적부담": "육체적부담_data_저장",
+                "통증호소자": "통증호소자_data_저장"
+            }
+            
+            for 시트명, 키 in 증상조사_시트.items():
+                if 키 in st.session_state and isinstance(st.session_state[키], pd.DataFrame):
+                    if not st.session_state[키].empty:
+                        st.session_state[키].to_excel(writer, sheet_name=f'증상_{시트명}', index=False)
+            
+            # 작업환경개선계획서
+            if "개선계획_data_저장" in st.session_state and isinstance(st.session_state["개선계획_data_저장"], pd.DataFrame):
+                if not st.session_state["개선계획_data_저장"].empty:
+                    st.session_state["개선계획_data_저장"].to_excel(writer, sheet_name='개선계획서', index=False)
+        
+        return True, filename
     except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
+        return False, str(e)
 
-# 데이터 불러오기 함수
-def load_from_db(session_id):
-    conn = sqlite3.connect('musculoskeletal_survey.db')
-    c = conn.cursor()
-    c.execute('SELECT data FROM survey_data WHERE session_id = ?', (session_id,))
-    result = c.fetchone()
-    conn.close()
-    if result:
-        return json.loads(result[0])
-    return None
+# Excel 파일에서 데이터 불러오기 함수
+def load_from_excel(filename):
+    """Excel 파일에서 세션 데이터 불러오기"""
+    try:
+        # 전체 시트 읽기
+        excel_file = pd.ExcelFile(filename)
+        
+        # 메타데이터 읽기
+        if '메타데이터' in excel_file.sheet_names:
+            metadata_df = pd.read_excel(excel_file, sheet_name='메타데이터')
+            if not metadata_df.empty:
+                metadata = metadata_df.iloc[0].to_dict()
+                
+                # 세션 상태에 메타데이터 복원
+                for key in ["session_id", "workplace", "사업장명", "소재지", "업종", "예비조사", "본조사", "수행기관", "성명"]:
+                    if key in metadata:
+                        st.session_state[key] = metadata[key]
+        
+        # 체크리스트 읽기
+        if '체크리스트' in excel_file.sheet_names:
+            st.session_state["checklist_df"] = pd.read_excel(excel_file, sheet_name='체크리스트')
+        
+        # 각 시트별로 데이터 읽기
+        for sheet_name in excel_file.sheet_names:
+            if sheet_name.startswith('조사표_'):
+                작업명 = sheet_name.replace('조사표_', '')
+                조사표_df = pd.read_excel(excel_file, sheet_name=sheet_name)
+                if not 조사표_df.empty:
+                    data = 조사표_df.iloc[0].to_dict()
+                    for key, value in data.items():
+                        if pd.notna(value):
+                            st.session_state[f"{key}_{작업명}"] = value
+            
+            elif sheet_name.startswith('작업조건_'):
+                작업명 = sheet_name.replace('작업조건_', '')
+                st.session_state[f"작업조건_data_{작업명}"] = pd.read_excel(excel_file, sheet_name=sheet_name)
+            
+            elif sheet_name.startswith('원인분석_'):
+                작업명 = sheet_name.replace('원인분석_', '')
+                원인분석_df = pd.read_excel(excel_file, sheet_name=sheet_name)
+                st.session_state[f"원인분석_항목_{작업명}"] = 원인분석_df.to_dict('records')
+            
+            elif sheet_name.startswith('정밀_'):
+                조사명 = sheet_name.replace('정밀_', '')
+                if 조사명 not in st.session_state.get("정밀조사_목록", []):
+                    if "정밀조사_목록" not in st.session_state:
+                        st.session_state["정밀조사_목록"] = []
+                    st.session_state["정밀조사_목록"].append(조사명)
+                
+                정밀_df = pd.read_excel(excel_file, sheet_name=sheet_name)
+                # 구현 계속...
+            
+            elif sheet_name.startswith('증상_'):
+                증상_키 = sheet_name.replace('증상_', '') + "_data_저장"
+                st.session_state[증상_키] = pd.read_excel(excel_file, sheet_name=sheet_name)
+            
+            elif sheet_name == '개선계획서':
+                st.session_state["개선계획_data_저장"] = pd.read_excel(excel_file, sheet_name=sheet_name)
+        
+        return True
+    except Exception as e:
+        return False
 
-# 작업현장별 세션 관리
-if "workplace" not in st.session_state:
-    st.session_state["workplace"] = None
-
-if "session_id" not in st.session_state:
-    st.session_state["session_id"] = None
-
-# 개선된 자동 저장 기능 (10초마다)
+# 자동 저장 기능 (Excel 버전)
 def auto_save():
     if "last_save_time" not in st.session_state:
         st.session_state["last_save_time"] = time.time()
     
     current_time = time.time()
-    if current_time - st.session_state["last_save_time"] > 10:  # 10초마다 자동 저장
-        save_data = {}
-        for key, value in st.session_state.items():
-            if isinstance(value, pd.DataFrame):
-                save_data[key] = value.to_dict('records')
-            elif isinstance(value, (str, int, float, bool, list, dict)):
-                save_data[key] = value
-            elif hasattr(value, 'isoformat'):
-                save_data[key] = value.isoformat()
-        
-        save_to_db(st.session_state["session_id"], save_data, st.session_state.get("workplace"))
-        st.session_state["last_save_time"] = current_time
-        st.session_state["last_successful_save"] = datetime.now()
+    if current_time - st.session_state["last_save_time"] > 30:  # 30초마다 자동 저장
+        if st.session_state.get("session_id") and st.session_state.get("workplace"):
+            success, _ = save_to_excel(st.session_state["session_id"], st.session_state.get("workplace"))
+            if success:
+                st.session_state["last_save_time"] = current_time
+                st.session_state["last_successful_save"] = datetime.now()
+
+# 저장된 세션 목록 가져오기
+def get_saved_sessions():
+    """저장된 Excel 세션 파일 목록 반환"""
+    sessions = []
+    if os.path.exists(SAVE_DIR):
+        for filename in os.listdir(SAVE_DIR):
+            if filename.endswith('.xlsx'):
+                filepath = os.path.join(SAVE_DIR, filename)
+                try:
+                    # 메타데이터 읽기
+                    metadata_df = pd.read_excel(filepath, sheet_name='메타데이터')
+                    if not metadata_df.empty:
+                        metadata = metadata_df.iloc[0].to_dict()
+                        sessions.append({
+                            "filename": filename,
+                            "session_id": metadata.get("session_id", ""),
+                            "workplace": metadata.get("workplace", ""),
+                            "saved_at": metadata.get("saved_at", "")
+                        })
+                except:
+                    continue
+    return sorted(sessions, key=lambda x: x["saved_at"], reverse=True)
 
 # 값 파싱 함수
 def parse_value(value, val_type=float):
@@ -114,8 +267,12 @@ def parse_value(value, val_type=float):
 if "checklist_df" not in st.session_state:
     st.session_state["checklist_df"] = pd.DataFrame()
 
-# 데이터베이스 초기화
-init_db()
+# 작업현장별 세션 관리
+if "workplace" not in st.session_state:
+    st.session_state["workplace"] = None
+
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = None
 
 # 작업명 목록을 가져오는 함수
 def get_작업명_목록():
@@ -161,11 +318,11 @@ with st.sidebar:
         새현장명 = st.text_input("새 현장명 입력")
         if 새현장명:
             st.session_state["workplace"] = 새현장명
-            st.session_state["session_id"] = f"{새현장명}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+            st.session_state["session_id"] = f"{새현장명}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     elif 선택된_현장 != "현장 선택...":
         st.session_state["workplace"] = 선택된_현장
         if not st.session_state.get("session_id") or 선택된_현장 not in st.session_state.get("session_id", ""):
-            st.session_state["session_id"] = f"{선택된_현장}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+            st.session_state["session_id"] = f"{선택된_현장}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     # 세션 정보 표시
     if st.session_state.get("session_id"):
@@ -177,89 +334,60 @@ with st.sidebar:
         st.success(f"✅ 마지막 자동저장: {last_save.strftime('%H:%M:%S')}")
     
     # 수동 저장 버튼
-    if st.button("💾 수동 저장", use_container_width=True):
-        try:
-            save_data = {}
-            for key, value in st.session_state.items():
-                if isinstance(value, pd.DataFrame):
-                    save_data[key] = value.to_dict('records')
-                elif isinstance(value, (str, int, float, bool, list, dict)):
-                    save_data[key] = value
-                elif hasattr(value, 'isoformat'):
-                    save_data[key] = value.isoformat()
-            
-            save_to_db(st.session_state["session_id"], save_data, st.session_state.get("workplace"))
-            st.success("✅ 데이터가 서버에 저장되었습니다!")
-        except Exception as e:
-            st.error(f"저장 중 오류 발생: {str(e)}")
+    if st.button("💾 Excel로 저장", use_container_width=True):
+        if st.session_state.get("session_id") and st.session_state.get("workplace"):
+            success, result = save_to_excel(st.session_state["session_id"], st.session_state.get("workplace"))
+            if success:
+                st.success(f"✅ Excel 파일로 저장되었습니다!\n📁 {result}")
+                st.session_state["last_successful_save"] = datetime.now()
+            else:
+                st.error(f"저장 중 오류 발생: {result}")
+        else:
+            st.warning("먼저 작업현장을 선택해주세요!")
     
-    # 이전 세션 불러오기
+    # 저장된 세션 목록
     st.markdown("---")
-    prev_session_id = st.text_input("이전 세션 ID 입력")
-    if st.button("📤 이전 세션 불러오기", use_container_width=True):
-        if prev_session_id:
-            loaded_data = load_from_db(prev_session_id)
-            if loaded_data:
-                for key, value in loaded_data.items():
-                    if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-                        st.session_state[key] = pd.DataFrame(value)
-                    else:
-                        st.session_state[key] = value
-                st.success("✅ 이전 세션 데이터를 불러왔습니다!")
+    st.markdown("### 📂 저장된 세션")
+    
+    saved_sessions = get_saved_sessions()
+    if saved_sessions:
+        selected_session = st.selectbox(
+            "불러올 세션 선택",
+            options=["선택..."] + [f"{s['workplace']} - {s['saved_at']}" for s in saved_sessions],
+            key="session_selector"
+        )
+        
+        if selected_session != "선택..." and st.button("📤 세션 불러오기", use_container_width=True):
+            session_idx = [f"{s['workplace']} - {s['saved_at']}" for s in saved_sessions].index(selected_session)
+            session_info = saved_sessions[session_idx]
+            filepath = os.path.join(SAVE_DIR, session_info["filename"])
+            
+            if load_from_excel(filepath):
+                st.success("✅ 세션을 성공적으로 불러왔습니다!")
                 st.rerun()
             else:
-                st.error("해당 세션 ID의 데이터를 찾을 수 없습니다.")
-    
-    # JSON 파일로 내보내기/가져오기
-    st.markdown("---")
-    st.subheader("📄 파일로 내보내기/가져오기")
-    
-    # 내보내기
-    if st.button("📥 JSON 파일로 내보내기", use_container_width=True):
-        try:
-            save_data = {}
-            for key, value in st.session_state.items():
-                if isinstance(value, pd.DataFrame):
-                    save_data[key] = value.to_dict('records')
-                elif isinstance(value, (str, int, float, bool, list, dict)):
-                    save_data[key] = value
-                elif hasattr(value, 'isoformat'):
-                    save_data[key] = value.isoformat()
-            
-            json_str = json.dumps(save_data, ensure_ascii=False, indent=2)
-            
-            st.download_button(
-                label="📥 다운로드",
-                data=json_str,
-                file_name=f"근골격계조사_{st.session_state.get('workplace', '')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json"
-            )
-        except Exception as e:
-            st.error(f"내보내기 중 오류 발생: {str(e)}")
-    
-    # 가져오기
-    uploaded_file = st.file_uploader("📂 JSON 파일 불러오기", type=['json'])
-    if uploaded_file is not None:
-        if st.button("📤 데이터 가져오기", use_container_width=True):
-            try:
-                save_data = json.load(uploaded_file)
-                for key, value in save_data.items():
-                    if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-                        st.session_state[key] = pd.DataFrame(value)
-                    else:
-                        st.session_state[key] = value
-                st.success("✅ 데이터를 성공적으로 가져왔습니다!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"가져오기 중 오류 발생: {str(e)}")
-    
-    # 성능 최적화 옵션
-    st.markdown("---")
-    st.subheader("⚡ 성능 최적화")
-    if st.checkbox("대용량 데이터 모드", help="체크리스트가 많을 때 사용하세요"):
-        st.session_state["large_data_mode"] = True
+                st.error("세션을 불러오는 중 오류가 발생했습니다.")
     else:
-        st.session_state["large_data_mode"] = False
+        st.info("저장된 세션이 없습니다.")
+    
+    # Excel 파일 직접 업로드
+    st.markdown("---")
+    st.markdown("### 📤 Excel 파일 업로드")
+    uploaded_file = st.file_uploader("Excel 파일 선택", type=['xlsx'])
+    if uploaded_file is not None:
+        if st.button("📥 데이터 가져오기", use_container_width=True):
+            # 임시 파일로 저장
+            temp_path = os.path.join(SAVE_DIR, f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+            with open(temp_path, 'wb') as f:
+                f.write(uploaded_file.getbuffer())
+            
+            if load_from_excel(temp_path):
+                st.success("✅ Excel 파일을 성공적으로 불러왔습니다!")
+                os.remove(temp_path)  # 임시 파일 삭제
+                st.rerun()
+            else:
+                st.error("파일을 불러오는 중 오류가 발생했습니다.")
+                os.remove(temp_path)  # 임시 파일 삭제
     
     # 부담작업 참고 정보
     with st.expander("📖 부담작업 빠른 참조"):
@@ -285,19 +413,8 @@ with st.sidebar:
         - 12호: 정적자세/진동/밀당기기
         """)
 
-# 페이지 로드 시 데이터 자동 복구
-if "data_loaded" not in st.session_state and st.session_state.get("session_id"):
-    saved_data = load_from_db(st.session_state["session_id"])
-    if saved_data:
-        for key, value in saved_data.items():
-            if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-                st.session_state[key] = pd.DataFrame(value)
-            else:
-                st.session_state[key] = value
-        st.session_state["data_loaded"] = True
-
 # 자동 저장 실행
-if st.session_state.get("session_id"):
+if st.session_state.get("session_id") and st.session_state.get("workplace"):
     auto_save()
 
 # 작업현장 선택 확인
@@ -327,11 +444,14 @@ with tabs[0]:
     업종 = st.text_input("업종", key="업종")
     col1, col2 = st.columns(2)
     with col1:
-        예비조사 = st.date_input("예비조사일", key="예비조사")
+        예비조사 = st.text_input("예비조사일 (YYYY-MM-DD)", key="예비조사", placeholder="2024-01-01")
         수행기관 = st.text_input("수행기관", key="수행기관")
     with col2:
-        본조사 = st.date_input("본조사일", key="본조사")
+        본조사 = st.text_input("본조사일 (YYYY-MM-DD)", key="본조사", placeholder="2024-01-01")
         성명 = st.text_input("성명", key="성명")
+
+# 나머지 탭들은 기존 코드와 동일합니다...
+# (여기서부터는 기존 코드의 나머지 부분을 그대로 사용)
 
 # 2. 근골격계 부담작업 체크리스트 탭
 with tabs[1]:
@@ -375,17 +495,12 @@ with tabs[1]:
                     if st.button("✅ 데이터 적용하기"):
                         st.session_state["checklist_df"] = df_excel
                         
-                        # 즉시 데이터베이스에 저장
-                        save_data = {}
-                        for key, value in st.session_state.items():
-                            if isinstance(value, pd.DataFrame):
-                                save_data[key] = value.to_dict('records')
-                            elif isinstance(value, (str, int, float, bool, list, dict)):
-                                save_data[key] = value
-                        
-                        save_to_db(st.session_state["session_id"], save_data, st.session_state.get("workplace"))
-                        st.session_state["last_save_time"] = time.time()
-                        st.session_state["last_successful_save"] = datetime.now()
+                        # 즉시 Excel 파일로 저장
+                        if st.session_state.get("session_id") and st.session_state.get("workplace"):
+                            success, _ = save_to_excel(st.session_state["session_id"], st.session_state.get("workplace"))
+                            if success:
+                                st.session_state["last_save_time"] = time.time()
+                                st.session_state["last_successful_save"] = datetime.now()
                         
                         st.success("✅ 엑셀 데이터를 성공적으로 불러오고 저장했습니다!")
                         st.rerun()
@@ -1434,7 +1549,7 @@ with tabs[6]:
     
     with col1:
         # 엑셀 다운로드 버튼
-        if st.button("📊 엑셀 파일로 다운로드", use_container_width=True):
+        if st.button("📊 전체 Excel 보고서 다운로드", use_container_width=True):
             try:
                 output = BytesIO()
                 
@@ -1607,18 +1722,20 @@ with tabs[6]:
                     
                 output.seek(0)
                 st.download_button(
-                    label="📥 엑셀 다운로드",
+                    label="📥 Excel 다운로드",
                     data=output,
                     file_name=f"근골격계_유해요인조사_{st.session_state.get('workplace', '')}_{datetime.now().strftime('%Y%m%d')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
                 
+                st.success("✅ Excel 보고서가 생성되었습니다!")
+                
             except Exception as e:
-                st.error(f"엑셀 파일 생성 중 오류가 발생했습니다: {str(e)}")
+                st.error(f"Excel 파일 생성 중 오류가 발생했습니다: {str(e)}")
                 st.info("데이터를 입력한 후 다시 시도해주세요.")
     
     with col2:
-        # PDF 보고서 생성 버튼
+        # PDF 보고서 생성 버튼 (기존 코드와 동일)
         if PDF_AVAILABLE:
             if st.button("📄 PDF 보고서 생성", use_container_width=True):
                 try:
