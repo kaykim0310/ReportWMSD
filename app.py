@@ -463,7 +463,7 @@ with tabs[1]:
         📌 엑셀 파일 양식:
         - 첫 번째 열: 작업명
         - 두 번째 열: 단위작업명
-        - 3~13번째 열: 1호~11호 (O(해당), △(잠재위험), X(미해당) 중 입력)
+        - 3~14번째 열: 1호~12호 (O(해당), △(잠재위험), X(미해당) 중 입력)
         """)
         
         uploaded_excel = st.file_uploader("엑셀 파일 선택", type=['xlsx', 'xls'])
@@ -474,17 +474,17 @@ with tabs[1]:
                 df_excel = pd.read_excel(uploaded_excel)
                 
                 # 컬럼명 확인 및 조정
-                expected_columns = ["작업명", "단위작업명"] + [f"{i}호" for i in range(1, 12)]
+                expected_columns = ["작업명", "단위작업명"] + [f"{i}호" for i in range(1, 13)]
                 
                 # 컬럼 개수가 맞는지 확인
-                if len(df_excel.columns) >= 13:
+                if len(df_excel.columns) >= 14:
                     # 컬럼명 재설정
                     df_excel.columns = expected_columns[:len(df_excel.columns)]
                     
                     # 값 검증 (O(해당), △(잠재위험), X(미해당)만 허용)
                     valid_values = ["O(해당)", "△(잠재위험)", "X(미해당)"]
                     
-                    # 3번째 열부터 13번째 열까지 검증
+                    # 3번째 열부터 14번째 열까지 검증
                     for col in expected_columns[2:]:
                         if col in df_excel.columns:
                             # 유효하지 않은 값은 X(미해당)으로 변경
@@ -514,7 +514,7 @@ with tabs[1]:
                         st.dataframe(df_excel)
                     
                 else:
-                    st.error("⚠️ 엑셀 파일의 컬럼이 13개 이상이어야 합니다. (작업명, 단위작업명, 1호~11호)")
+                    st.error("⚠️ 엑셀 파일의 컬럼이 14개 이상이어야 합니다. (작업명, 단위작업명, 1호~12호)")
                     
             except Exception as e:
                 st.error(f"❌ 파일 읽기 오류: {str(e)}")
@@ -535,7 +535,8 @@ with tabs[1]:
             "8호": ["X(미해당)", "X(미해당)", "X(미해당)", "X(미해당)", "X(미해당)"],
             "9호": ["X(미해당)", "X(미해당)", "X(미해당)", "X(미해당)", "X(미해당)"],
             "10호": ["X(미해당)", "X(미해당)", "X(미해당)", "X(미해당)", "X(미해당)"],
-            "11호": ["O(해당)", "X(미해당)", "X(미해당)", "O(해당)", "△(잠재위험)"]
+            "11호": ["O(해당)", "X(미해당)", "X(미해당)", "O(해당)", "△(잠재위험)"],
+            "12호": ["X(미해당)", "△(잠재위험)", "O(해당)", "X(미해당)", "X(미해당)"]
         })
         
         # 엑셀 파일로 변환
@@ -560,7 +561,7 @@ with tabs[1]:
     # 기존 데이터 편집기
     columns = [
         "작업명", "단위작업명"
-    ] + [f"{i}호" for i in range(1, 12)]
+    ] + [f"{i}호" for i in range(1, 13)]
     
     # 세션 상태에 저장된 데이터가 있으면 사용, 없으면 빈 데이터
     if not st.session_state["checklist_df"].empty:
@@ -568,7 +569,7 @@ with tabs[1]:
     else:
         data = pd.DataFrame(
             columns=columns,
-            data=[["", ""] + ["X(미해당)"]*11 for _ in range(5)]
+            data=[["", ""] + ["X(미해당)"]*12 for _ in range(5)]
         )
 
     ho_options = [
@@ -579,87 +580,10 @@ with tabs[1]:
     column_config = {
         f"{i}호": st.column_config.SelectboxColumn(
             f"{i}호", options=ho_options, required=True
-        ) for i in range(1, 12)
+        ) for i in range(1, 13)
     }
     column_config["작업명"] = st.column_config.TextColumn("작업명")
     column_config["단위작업명"] = st.column_config.TextColumn("단위작업명")
-
-    # 대용량 데이터 모드에서는 페이지네이션 사용
-    if st.session_state.get("large_data_mode", False) and len(data) > 50:
-        st.warning("대용량 데이터 모드가 활성화되었습니다.")
-        
-        # 페이지네이션 개선
-        page_size = st.selectbox("페이지당 행 수", [25, 50, 100, 200], index=1)
-        total_pages = (len(data) - 1) // page_size + 1
-        
-        # 페이지 네비게이션
-        col1, col2, col3 = st.columns([2, 3, 2])
-        with col1:
-            if st.button("◀ 이전", disabled=(st.session_state.get('current_page', 1) <= 1)):
-                st.session_state['current_page'] = st.session_state.get('current_page', 1) - 1
-                st.rerun()
-        
-        with col2:
-            page = st.selectbox(
-                "페이지", 
-                range(1, total_pages + 1), 
-                index=st.session_state.get('current_page', 1) - 1,
-                format_func=lambda x: f"{x}/{total_pages}"
-            )
-            st.session_state['current_page'] = page
-        
-        with col3:
-            if st.button("다음 ▶", disabled=(st.session_state.get('current_page', 1) >= total_pages)):
-                st.session_state['current_page'] = st.session_state.get('current_page', 1) + 1
-                st.rerun()
-        
-        start_idx = (page - 1) * page_size
-        end_idx = min(start_idx + page_size, len(data))
-        
-        # 현재 페이지 데이터만 표시
-        page_data = data.iloc[start_idx:end_idx].copy()
-        
-        edited_df = st.data_editor(
-            page_data,
-            use_container_width=True,
-            hide_index=True,
-            column_config=column_config,
-            key=f"page_editor_{page}"
-        )
-        
-        # 편집된 데이터 병합
-        data.iloc[start_idx:end_idx] = edited_df
-        st.session_state["checklist_df"] = data
-        
-        # 전체 데이터 요약 표시
-        st.info(f"📊 전체 {len(data)}개 행 중 {start_idx+1}-{end_idx}번째 표시 중")
-        
-        # 빠른 검색 기능
-        search_col1, search_col2 = st.columns([1, 3])
-        with search_col1:
-            search_field = st.selectbox("검색 필드", ["작업명", "단위작업명"])
-        with search_col2:
-            search_term = st.text_input("검색어", key="checklist_search")
-        
-        if search_term:
-            filtered_data = data[data[search_field].str.contains(search_term, case=False, na=False)]
-            st.write(f"🔍 '{search_term}' 검색 결과: {len(filtered_data)}개")
-            if len(filtered_data) > 0:
-                st.dataframe(filtered_data.head(10))
-    else:
-        edited_df = st.data_editor(
-            data,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            column_config=column_config
-        )
-        st.session_state["checklist_df"] = edited_df
-    
-    # 현재 등록된 작업명 표시
-    작업명_목록 = get_작업명_목록()
-    if 작업명_목록:
-        st.info(f"📋 현재 등록된 작업: {', '.join(작업명_목록)}")
 
 # 3. 유해요인조사표 탭
 with tabs[2]:
