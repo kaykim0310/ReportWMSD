@@ -1351,358 +1351,673 @@ with tabs[3]:
                             hazard_entry["수공구사용시 지지대가 있는가?"] = st.selectbox(f"[{k+1}] 수공구사용시 지지대가 있는가?", 지지대_options, index=selected_지지대_index, key=f"기타_지지대_여부_{k}_{selected_작업명}")
                 
                 st.markdown("---")
-st.markdown("---")
 
 # 5. 정밀조사 탭
 with tabs[4]:
     st.title("정밀조사")
     
-    # 정밀조사 목록 관리
+    # 세션 상태 초기화
     if "정밀조사_목록" not in st.session_state:
         st.session_state["정밀조사_목록"] = []
     
-    # 새 정밀조사 추가
-    with st.expander("🔍 새 정밀조사 추가", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            새_정밀조사명 = st.text_input("정밀조사명", placeholder="예: 조립라인_정밀조사_1")
-        with col2:
-            if st.button("➕ 정밀조사 추가", use_container_width=True):
-                if 새_정밀조사명 and 새_정밀조사명 not in st.session_state["정밀조사_목록"]:
-                    st.session_state["정밀조사_목록"].append(새_정밀조사명)
-                    st.success(f"✅ '{새_정밀조사명}' 정밀조사가 추가되었습니다!")
-                    st.rerun()
-                elif 새_정밀조사명 in st.session_state["정밀조사_목록"]:
-                    st.warning("⚠️ 이미 존재하는 정밀조사명입니다.")
+    # 정밀조사 추가 버튼
+    col1, col2 = st.columns([6, 1])
+    with col2:
+        if st.button("➕ 정밀조사 추가", use_container_width=True):
+            st.session_state["정밀조사_목록"].append(f"정밀조사_{len(st.session_state['정밀조사_목록'])+1}")
+            st.rerun()
     
-    # 기존 정밀조사 목록 표시 및 관리
-    if st.session_state["정밀조사_목록"]:
-        st.markdown("### 📋 등록된 정밀조사 목록")
-        
-        for i, 조사명 in enumerate(st.session_state["정밀조사_목록"]):
-            with st.expander(f"🔬 {조사명}", expanded=False):
+    if not st.session_state["정밀조사_목록"]:
+        st.info("📋 정밀조사가 필요한 경우 '정밀조사 추가' 버튼을 클릭하세요.")
+    else:
+        # 각 정밀조사 표시
+        for idx, 조사명 in enumerate(st.session_state["정밀조사_목록"]):
+            with st.expander(f"📌 {조사명}", expanded=True):
                 # 삭제 버튼
-                col1, col2 = st.columns([8, 2])
+                col1, col2 = st.columns([10, 1])
                 with col2:
-                    if st.button(f"🗑️ 삭제", key=f"정밀조사_삭제_{i}"):
+                    if st.button("❌", key=f"삭제_{조사명}"):
                         st.session_state["정밀조사_목록"].remove(조사명)
-                        # 관련 세션 데이터도 삭제
-                        keys_to_delete = [key for key in st.session_state.keys() if 조사명 in key and "정밀" in key]
-                        for key in keys_to_delete:
-                            del st.session_state[key]
-                        st.success(f"✅ '{조사명}' 정밀조사가 삭제되었습니다!")
                         st.rerun()
                 
-                # 기본 정보 입력
+                # 정밀조사표
+                st.subheader("정밀조사표")
                 col1, col2 = st.columns(2)
                 with col1:
-                    작업공정명_정밀 = st.text_input("작업공정명", key=f"정밀_작업공정명_{조사명}")
+                    정밀_작업공정명 = st.text_input("작업공정명", key=f"정밀_작업공정명_{조사명}")
                 with col2:
-                    작업명_정밀 = st.text_input("작업명", key=f"정밀_작업명_{조사명}")
+                    정밀_작업명 = st.text_input("작업명", key=f"정밀_작업명_{조사명}")
                 
-                # 정밀조사 원인분석 테이블
-                st.markdown("#### 정밀조사 원인분석")
+                # 사진 업로드 영역
+                st.markdown("#### 사진")
+                정밀_사진 = st.file_uploader(
+                    "작업 사진 업로드",
+                    type=['png', 'jpg', 'jpeg'],
+                    accept_multiple_files=True,
+                    key=f"정밀_사진_{조사명}"
+                )
+                if 정밀_사진:
+                    cols = st.columns(3)
+                    for photo_idx, photo in enumerate(정밀_사진):
+                        with cols[photo_idx % 3]:
+                            st.image(photo, caption=f"사진 {photo_idx+1}", use_column_width=True)
                 
-                # 정밀조사 원인분석 데이터 초기화
-                정밀_원인분석_key = f"정밀_원인분석_data_{조사명}"
-                if 정밀_원인분석_key not in st.session_state:
-                    st.session_state[정밀_원인분석_key] = pd.DataFrame({
-                        "유해요인": ["", "", ""],
-                        "원인": ["", "", ""],
-                        "개선방안": ["", "", ""]
+                st.markdown("---")
+                
+                # 작업별로 관련된 유해요인에 대한 원인분석
+                st.markdown("#### ■ 작업별로 관련된 유해요인에 대한 원인분석")
+                
+                정밀_원인분석_data = []
+                for i in range(7):
+                    정밀_원인분석_data.append({
+                        "작업분석 및 평가도구": "",
+                        "분석결과": "",
+                        "만점": ""
                     })
                 
-                # 데이터 편집기
-                정밀_원인분석_df = st.data_editor(
-                    st.session_state[정밀_원인분석_key],
-                    num_rows="dynamic",
+                정밀_원인분석_df = pd.DataFrame(정밀_원인분석_data)
+                
+                정밀_원인분석_config = {
+                    "작업분석 및 평가도구": st.column_config.TextColumn("작업분석 및 평가도구", width=350),
+                    "분석결과": st.column_config.TextColumn("분석결과", width=250),
+                    "만점": st.column_config.TextColumn("만점", width=150)
+                }
+                
+                정밀_원인분석_edited = st.data_editor(
+                    정밀_원인분석_df,
                     use_container_width=True,
                     hide_index=True,
-                    key=f"정밀_원인분석_editor_{조사명}"
+                    column_config=정밀_원인분석_config,
+                    num_rows="dynamic",
+                    key=f"정밀_원인분석_{조사명}"
                 )
                 
-                # 편집된 데이터 저장
-                st.session_state[정밀_원인분석_key] = 정밀_원인분석_df
-    else:
-        st.info("📌 정밀조사를 추가하려면 위의 '새 정밀조사 추가' 섹션을 사용하세요.")
+                # 데이터 세션 상태에 저장
+                st.session_state[f"정밀_원인분석_data_{조사명}"] = 정밀_원인분석_edited
 
 # 6. 증상조사 분석 탭
 with tabs[5]:
-    st.title("증상조사 분석")
+    st.title("근골격계 자기증상 분석")
     
-    # 증상조사 하위 탭
-    증상_탭 = st.tabs(["기초현황", "작업기간", "육체적부담", "통증호소자"])
+    # 작업명 목록 가져오기
+    작업명_목록 = get_작업명_목록()
     
-    # 기초현황 탭
-    with 증상_탭[0]:
-        st.subheader("기초현황 분석")
+    # 1. 기초현황
+    st.subheader("1. 기초현황")
+    
+    # 작업명별 데이터 자동 생성
+    기초현황_columns = ["작업명", "응답자(명)", "나이", "근속년수", "남자(명)", "여자(명)", "합계"]
+    
+    if 작업명_목록:
+        # 작업명 목록을 기반으로 데이터 생성
+        기초현황_data_rows = []
+        for 작업명 in 작업명_목록:
+            기초현황_data_rows.append([작업명, "", "평균(세)", "평균(년)", "", "", ""])
+        기초현황_data = pd.DataFrame(기초현황_data_rows, columns=기초현황_columns)
+    else:
+        기초현황_data = pd.DataFrame(
+            columns=기초현황_columns,
+            data=[["", "", "평균(세)", "평균(년)", "", "", ""] for _ in range(3)]
+        )
+    
+    기초현황_edited = st.data_editor(
+        기초현황_data,
+        hide_index=True,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="기초현황_data"
+    )
+    
+    # 2. 작업기간
+    st.subheader("2. 작업기간")
+    st.markdown("##### 현재 작업기간 / 이전 작업기간")
+    
+    작업기간_columns = ["작업명", "<1년", "<3년", "<5년", "≥5년", "무응답", "합계", "이전<1년", "이전<3년", "이전<5년", "이전≥5년", "이전무응답", "이전합계"]
+    
+    if 작업명_목록:
+        # 작업명 목록을 기반으로 데이터 생성
+        작업기간_data_rows = []
+        for 작업명 in 작업명_목록:
+            작업기간_data_rows.append([작업명] + [""] * 12)
+        작업기간_data = pd.DataFrame(작업기간_data_rows, columns=작업기간_columns)
+    else:
+        작업기간_data = pd.DataFrame(
+            columns=작업기간_columns,
+            data=[[""] * 13 for _ in range(3)]
+        )
+    
+    작업기간_edited = st.data_editor(
+        작업기간_data,
+        hide_index=True,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="작업기간_data"
+    )
+    
+    # 3. 육체적 부담정도
+    st.subheader("3. 육체적 부담정도")
+    육체적부담_columns = ["작업명", "전혀 힘들지 않음", "견딜만 함", "약간 힘듦", "힘듦", "매우 힘듦", "합계"]
+    
+    if 작업명_목록:
+        # 작업명 목록을 기반으로 데이터 생성
+        육체적부담_data_rows = []
+        for 작업명 in 작업명_목록:
+            육체적부담_data_rows.append([작업명] + [""] * 6)
+        육체적부담_data = pd.DataFrame(육체적부담_data_rows, columns=육체적부담_columns)
+    else:
+        육체적부담_data = pd.DataFrame(
+            columns=육체적부담_columns,
+            data=[["", "", "", "", "", "", ""] for _ in range(3)]
+        )
+    
+    육체적부담_edited = st.data_editor(
+        육체적부담_data,
+        hide_index=True,
+        use_container_width=True,
+        num_rows="dynamic",
+        key="육체적부담_data"
+    )
+    
+    # 세션 상태에 저장
+    st.session_state["기초현황_data_저장"] = 기초현황_edited
+    st.session_state["작업기간_data_저장"] = 작업기간_edited
+    st.session_state["육체적부담_data_저장"] = 육체적부담_edited
+    
+    # 4. 근골격계 통증 호소자 분포
+    st.subheader("4. 근골격계 통증 호소자 분포")
+    
+    if 작업명_목록:
+        # 컬럼 정의
+        통증호소자_columns = ["작업명", "구분", "목", "어깨", "팔/팔꿈치", "손/손목/손가락", "허리", "다리/발", "전체"]
         
-        # 기초현황 데이터 초기화
-        if "기초현황_data_저장" not in st.session_state:
-            st.session_state["기초현황_data_저장"] = pd.DataFrame({
-                "구분": ["남성", "여성", "전체"],
-                "조사대상자수": [0, 0, 0],
-                "응답자수": [0, 0, 0],
-                "응답률(%)": [0.0, 0.0, 0.0]
-            })
+        # 데이터 생성
+        통증호소자_data = []
         
-        # 데이터 편집
-        기초현황_df = st.data_editor(
-            st.session_state["기초현황_data_저장"],
-            use_container_width=True,
+        for 작업명 in 작업명_목록:
+            # 각 작업명에 대해 정상, 관리대상자, 통증호소자 3개 행 추가
+            통증호소자_data.append([작업명, "정상", "", "", "", "", "", "", ""])
+            통증호소자_data.append(["", "관리대상자", "", "", "", "", "", "", ""])
+            통증호소자_data.append(["", "통증호소자", "", "", "", "", "", "", ""])
+        
+        통증호소자_df = pd.DataFrame(통증호소자_data, columns=통증호소자_columns)
+        
+        # 컬럼 설정
+        column_config = {
+            "작업명": st.column_config.TextColumn("작업명", disabled=True, width=150),
+            "구분": st.column_config.TextColumn("구분", disabled=True, width=100),
+            "목": st.column_config.TextColumn("목", width=80),
+            "어깨": st.column_config.TextColumn("어깨", width=80),
+            "팔/팔꿈치": st.column_config.TextColumn("팔/팔꿈치", width=100),
+            "손/손목/손가락": st.column_config.TextColumn("손/손목/손가락", width=120),
+            "허리": st.column_config.TextColumn("허리", width=80),
+            "다리/발": st.column_config.TextColumn("다리/발", width=80),
+            "전체": st.column_config.TextColumn("전체", width=80)
+        }
+        
+        통증호소자_edited = st.data_editor(
+            통증호소자_df,
             hide_index=True,
-            key="기초현황_editor",
-            column_config={
-                "구분": st.column_config.TextColumn("구분", disabled=True),
-                "조사대상자수": st.column_config.NumberColumn("조사대상자수", min_value=0),
-                "응답자수": st.column_config.NumberColumn("응답자수", min_value=0),
-                "응답률(%)": st.column_config.NumberColumn("응답률(%)", min_value=0.0, max_value=100.0, format="%.1f")
-            }
+            use_container_width=True,
+            column_config=column_config,
+            key="통증호소자_data_editor",
+            disabled=["작업명", "구분"]
         )
         
-        # 응답률 자동 계산
-        for idx in range(len(기초현황_df)):
-            조사대상 = 기초현황_df.at[idx, "조사대상자수"]
-            응답자 = 기초현황_df.at[idx, "응답자수"]
-            if 조사대상 > 0:
-                기초현황_df.at[idx, "응답률(%)"] = round((응답자 / 조사대상) * 100, 1)
+        # 세션 상태에 저장
+        st.session_state["통증호소자_data_저장"] = 통증호소자_edited
+    else:
+        st.info("체크리스트에 작업명을 입력하면 자동으로 표가 생성됩니다.")
         
-        # 저장
-        st.session_state["기초현황_data_저장"] = 기초현황_df
-        
-        # 차트 표시
-        if not 기초현황_df.empty and 기초현황_df["응답자수"].sum() > 0:
-            import plotly.express as px
-            fig = px.bar(
-                기초현황_df[기초현황_df["구분"] != "전체"], 
-                x="구분", 
-                y="응답자수",
-                title="성별 응답자 분포",
-                color="구분"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # 작업기간 탭
-    with 증상_탭[1]:
-        st.subheader("작업기간별 분석")
-        
-        if "작업기간_data_저장" not in st.session_state:
-            st.session_state["작업기간_data_저장"] = pd.DataFrame({
-                "작업기간": ["1년 미만", "1~3년 미만", "3~5년 미만", "5~10년 미만", "10년 이상"],
-                "응답자수": [0, 0, 0, 0, 0],
-                "비율(%)": [0.0, 0.0, 0.0, 0.0, 0.0]
-            })
-        
-        작업기간_df = st.data_editor(
-            st.session_state["작업기간_data_저장"],
-            use_container_width=True,
-            hide_index=True,
-            key="작업기간_editor"
-        )
-        
-        # 비율 자동 계산
-        total = 작업기간_df["응답자수"].sum()
-        if total > 0:
-            작업기간_df["비율(%)"] = round((작업기간_df["응답자수"] / total) * 100, 1)
-        
-        st.session_state["작업기간_data_저장"] = 작업기간_df
-        
-        # 파이 차트
-        if total > 0:
-            import plotly.express as px
-            fig = px.pie(
-                작업기간_df[작업기간_df["응답자수"] > 0], 
-                values="응답자수", 
-                names="작업기간",
-                title="작업기간별 분포"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # 육체적부담 탭
-    with 증상_탭[2]:
-        st.subheader("육체적 부담 정도")
-        
-        if "육체적부담_data_저장" not in st.session_state:
-            st.session_state["육체적부담_data_저장"] = pd.DataFrame({
-                "부담정도": ["매우 가벼움", "가벼움", "보통", "무거움", "매우 무거움"],
-                "응답자수": [0, 0, 0, 0, 0],
-                "비율(%)": [0.0, 0.0, 0.0, 0.0, 0.0]
-            })
-        
-        육체적부담_df = st.data_editor(
-            st.session_state["육체적부담_data_저장"],
-            use_container_width=True,
-            hide_index=True,
-            key="육체적부담_editor"
-        )
-        
-        # 비율 자동 계산
-        total = 육체적부담_df["응답자수"].sum()
-        if total > 0:
-            육체적부담_df["비율(%)"] = round((육체적부담_df["응답자수"] / total) * 100, 1)
-        
-        st.session_state["육체적부담_data_저장"] = 육체적부담_df
-        
-        # 막대 차트
-        if total > 0:
-            import plotly.express as px
-            fig = px.bar(
-                육체적부담_df, 
-                x="부담정도", 
-                y="응답자수",
-                title="육체적 부담 정도별 분포",
-                color="부담정도"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # 통증호소자 탭
-    with 증상_탭[3]:
-        st.subheader("신체부위별 통증호소자")
-        
-        if "통증호소자_data_저장" not in st.session_state:
-            st.session_state["통증호소자_data_저장"] = pd.DataFrame({
-                "신체부위": ["목", "어깨", "팔/팔꿈치", "손목/손가락", "허리", "다리/발"],
-                "통증호소자수": [0, 0, 0, 0, 0, 0],
-                "전체응답자수": [0, 0, 0, 0, 0, 0],
-                "호소율(%)": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-            })
-        
-        통증호소자_df = st.data_editor(
-            st.session_state["통증호소자_data_저장"],
-            use_container_width=True,
-            hide_index=True,
-            key="통증호소자_editor"
-        )
-        
-        # 호소율 자동 계산
-        for idx in range(len(통증호소자_df)):
-            전체 = 통증호소자_df.at[idx, "전체응답자수"]
-            통증 = 통증호소자_df.at[idx, "통증호소자수"]
-            if 전체 > 0:
-                통증호소자_df.at[idx, "호소율(%)"] = round((통증 / 전체) * 100, 1)
-        
-        st.session_state["통증호소자_data_저장"] = 통증호소자_df
-        
-        # 수평 막대 차트
-        if 통증호소자_df["통증호소자수"].sum() > 0:
-            import plotly.express as px
-            fig = px.bar(
-                통증호소자_df, 
-                x="호소율(%)", 
-                y="신체부위",
-                title="신체부위별 통증 호소율",
-                orientation='h',
-                color="호소율(%)",
-                color_continuous_scale="Reds"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        # 빈 데이터프레임 표시
+        통증호소자_columns = ["작업명", "구분", "목", "어깨", "팔/팔꿈치", "손/손목/손가락", "허리", "다리/발", "전체"]
+        빈_df = pd.DataFrame(columns=통증호소자_columns)
+        st.dataframe(빈_df, use_container_width=True)
 
 # 7. 작업환경개선계획서 탭
 with tabs[6]:
     st.title("작업환경개선계획서")
     
-    # 개선계획 데이터 초기화
-    if "개선계획_data_저장" not in st.session_state:
-        st.session_state["개선계획_data_저장"] = pd.DataFrame({
-            "순번": [1, 2, 3],
-            "작업공정": ["", "", ""],
-            "유해요인": ["", "", ""],
-            "개선방법": ["", "", ""],
-            "개선시기": ["", "", ""],
-            "소요예산": ["", "", ""],
-            "담당부서": ["", "", ""],
-            "비고": ["", "", ""]
-        })
+    # 컬럼 정의
+    개선계획_columns = [
+        "공정명",
+        "작업명",
+        "단위작업명",
+        "문제점(유해요인의 원인)",
+        "근로자의견",
+        "개선방안",
+        "추진일정",
+        "개선비용",
+        "개선우선순위"
+    ]
     
-    st.markdown("### 📋 작업환경 개선계획")
+    # 세션 상태에 개선계획 데이터가 없으면 초기화
+    if "개선계획_data_저장" not in st.session_state or st.session_state["개선계획_data_저장"].empty:
+        # 체크리스트 데이터 기반으로 초기 데이터 생성
+        if not st.session_state["checklist_df"].empty:
+            개선계획_data_rows = []
+            for _, row in st.session_state["checklist_df"].iterrows():
+                if row["작업명"] and row["단위작업명"]:
+                    # 부담작업이 있는 경우만 추가
+                    부담작업_있음 = False
+                    for i in range(1, 12):
+                        if row[f"{i}호"] in ["O(해당)", "△(잠재위험)"]:
+                            부담작업_있음 = True
+                            break
+                    
+                    if 부담작업_있음:
+                        개선계획_data_rows.append([
+                            row["작업명"],  # 공정명에도 작업명 사용
+                            row["작업명"],
+                            row["단위작업명"],
+                            "",  # 문제점
+                            "",  # 근로자의견
+                            "",  # 개선방안
+                            "",  # 추진일정
+                            "",  # 개선비용
+                            ""   # 개선우선순위
+                        ])
+            
+            # 데이터가 있으면 사용, 없으면 빈 행 5개
+            if 개선계획_data_rows:
+                개선계획_data = pd.DataFrame(개선계획_data_rows, columns=개선계획_columns)
+            else:
+                개선계획_data = pd.DataFrame(
+                    columns=개선계획_columns,
+                    data=[["", "", "", "", "", "", "", "", ""] for _ in range(5)]
+                )
+        else:
+            # 초기 데이터 (빈 행 5개)
+            개선계획_data = pd.DataFrame(
+                columns=개선계획_columns,
+                data=[["", "", "", "", "", "", "", "", ""] for _ in range(5)]
+            )
+        
+        st.session_state["개선계획_data_저장"] = 개선계획_data
+    
+    # 컬럼 설정
+    개선계획_config = {
+        "공정명": st.column_config.TextColumn("공정명", width=100),
+        "작업명": st.column_config.TextColumn("작업명", width=100),
+        "단위작업명": st.column_config.TextColumn("단위작업명", width=120),
+        "문제점(유해요인의 원인)": st.column_config.TextColumn("문제점(유해요인의 원인)", width=200),
+        "근로자의견": st.column_config.TextColumn("근로자의견", width=150),
+        "개선방안": st.column_config.TextColumn("개선방안", width=200),
+        "추진일정": st.column_config.TextColumn("추진일정", width=100),
+        "개선비용": st.column_config.TextColumn("개선비용", width=100),
+        "개선우선순위": st.column_config.TextColumn("개선우선순위", width=120)
+    }
     
     # 데이터 편집기
-    개선계획_df = st.data_editor(
+    개선계획_edited = st.data_editor(
         st.session_state["개선계획_data_저장"],
-        num_rows="dynamic",
-        use_container_width=True,
         hide_index=True,
-        key="개선계획_editor",
-        column_config={
-            "순번": st.column_config.NumberColumn("순번", min_value=1),
-            "작업공정": st.column_config.TextColumn("작업공정"),
-            "유해요인": st.column_config.TextColumn("유해요인"),
-            "개선방법": st.column_config.TextColumn("개선방법"),
-            "개선시기": st.column_config.TextColumn("개선시기"),
-            "소요예산": st.column_config.TextColumn("소요예산"),
-            "담당부서": st.column_config.TextColumn("담당부서"),
-            "비고": st.column_config.TextColumn("비고")
-        }
+        use_container_width=True,
+        num_rows="dynamic",
+        column_config=개선계획_config,
+        key="개선계획_data"
     )
     
-    # 순번 자동 업데이트
-    for idx in range(len(개선계획_df)):
-        개선계획_df.at[idx, "순번"] = idx + 1
+    # 세션 상태에 저장
+    st.session_state["개선계획_data_저장"] = 개선계획_edited
     
-    # 저장
-    st.session_state["개선계획_data_저장"] = 개선계획_df
+    # 도움말
+    with st.expander("ℹ️ 작성 도움말"):
+        st.markdown("""
+        - **공정명**: 해당 작업이 속한 공정명
+        - **작업명**: 개선이 필요한 작업명
+        - **단위작업명**: 구체적인 단위작업명
+        - **문제점**: 유해요인의 구체적인 원인
+        - **근로자의견**: 현장 근로자의 개선 의견
+        - **개선방안**: 구체적인 개선 방법
+        - **추진일정**: 개선 예정 시기
+        - **개선비용**: 예상 소요 비용
+        - **개선우선순위**: 종합점수/중점수/중상호소여부를 고려한 우선순위
+        """)
     
-    # 요약 정보
-    if not 개선계획_df.empty:
-        완료된_계획 = len(개선계획_df[개선계획_df["작업공정"] != ""])
-        전체_계획 = len(개선계획_df)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("전체 계획", f"{전체_계획}건")
-        with col2:
-            st.metric("작성 완료", f"{완료된_계획}건")
-        with col3:
-            진행률 = round((완료된_계획 / max(전체_계획, 1)) * 100, 1)
-            st.metric("작성 진행률", f"{진행률}%")
+    # 행 추가/삭제 버튼
+    col1, col2, col3 = st.columns([8, 1, 1])
+    with col2:
+        if st.button("➕ 행 추가", key="개선계획_행추가", use_container_width=True):
+            new_row = pd.DataFrame([["", "", "", "", "", "", "", "", ""]], columns=개선계획_columns)
+            st.session_state["개선계획_data_저장"] = pd.concat([st.session_state["개선계획_data_저장"], new_row], ignore_index=True)
+            st.rerun()
+    with col3:
+        if st.button("➖ 마지막 행 삭제", key="개선계획_행삭제", use_container_width=True):
+            if len(st.session_state["개선계획_data_저장"]) > 0:
+                st.session_state["개선계획_data_저장"] = st.session_state["개선계획_data_저장"].iloc[:-1]
+                st.rerun()
     
-    # 개선계획서 출력 기능
+    # 전체 보고서 다운로드
     st.markdown("---")
-    st.markdown("### 📄 개선계획서 출력")
+    st.subheader("📥 전체 보고서 다운로드")
     
     col1, col2 = st.columns(2)
+    
     with col1:
-        if st.button("📊 Excel로 내보내기", use_container_width=True):
-            # Excel 출력 로직
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                개선계획_df.to_excel(writer, sheet_name='개선계획서', index=False)
-            
-            output.seek(0)
-            st.download_button(
-                label="📥 개선계획서.xlsx 다운로드",
-                data=output,
-                file_name=f"작업환경개선계획서_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        # 엑셀 다운로드 버튼
+        if st.button("📊 전체 Excel 보고서 다운로드", use_container_width=True):
+            try:
+                output = BytesIO()
+                
+                # 작업명 목록 다시 가져오기
+                작업명_목록_다운로드 = get_작업명_목록()
+                
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    # 사업장 개요 정보
+                    overview_data = {
+                        "항목": ["사업장명", "소재지", "업종", "예비조사일", "본조사일", "수행기관", "성명"],
+                        "내용": [
+                            st.session_state.get("사업장명", ""),
+                            st.session_state.get("소재지", ""),
+                            st.session_state.get("업종", ""),
+                            str(st.session_state.get("예비조사", "")),
+                            str(st.session_state.get("본조사", "")),
+                            st.session_state.get("수행기관", ""),
+                            st.session_state.get("성명", "")
+                        ]
+                    }
+                    overview_df = pd.DataFrame(overview_data)
+                    overview_df.to_excel(writer, sheet_name='사업장개요', index=False)
+                    
+                    # 체크리스트
+                    if "checklist_df" in st.session_state and not st.session_state["checklist_df"].empty:
+                        st.session_state["checklist_df"].to_excel(writer, sheet_name='체크리스트', index=False)
+                    
+                    # 유해요인조사표 데이터 저장 (작업명별로)
+                    for 작업명 in 작업명_목록_다운로드:
+                        조사표_data = []
+                        
+                        # 조사개요
+                        조사표_data.append(["조사개요"])
+                        조사표_data.append(["조사일시", st.session_state.get(f"조사일시_{작업명}", "")])
+                        조사표_data.append(["부서명", st.session_state.get(f"부서명_{작업명}", "")])
+                        조사표_data.append(["조사자", st.session_state.get(f"조사자_{작업명}", "")])
+                        조사표_data.append(["작업공정명", st.session_state.get(f"작업공정명_{작업명}", "")])
+                        조사표_data.append(["작업명", st.session_state.get(f"작업명_{작업명}", "")])
+                        조사표_data.append([])  # 빈 행
+                        
+                        # 작업장 상황조사
+                        조사표_data.append(["작업장 상황조사"])
+                        조사표_data.append(["항목", "상태", "세부사항"])
+                        
+                        for 항목 in ["작업설비", "작업량", "작업속도", "업무변화"]:
+                            상태 = st.session_state.get(f"{항목}_상태_{작업명}", "변화없음")
+                            세부사항 = ""
+                            if 상태 == "감소":
+                                세부사항 = st.session_state.get(f"{항목}_감소_시작_{작업명}", "")
+                            elif 상태 == "증가":
+                                세부사항 = st.session_state.get(f"{항목}_증가_시작_{작업명}", "")
+                            elif 상태 == "기타":
+                                세부사항 = st.session_state.get(f"{항목}_기타_내용_{작업명}", "")
+                            
+                            조사표_data.append([항목, 상태, 세부사항])
+                        
+                        if 조사표_data:
+                            조사표_df = pd.DataFrame(조사표_data)
+                            sheet_name = f'유해요인_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                            조사표_df.to_excel(writer, sheet_name=sheet_name, index=False, header=False)
+                    
+                    # 각 작업별 데이터 저장
+                    for 작업명 in 작업명_목록_다운로드:
+                        # 작업조건조사 데이터 저장
+                        data_key = f"작업조건_data_{작업명}"
+                        if data_key in st.session_state:
+                            작업_df = st.session_state[data_key]
+                            if isinstance(작업_df, pd.DataFrame) and not 작업_df.empty:
+                                export_df = 작업_df.copy()
+                                
+                                # 총점 계산
+                                for idx in range(len(export_df)):
+                                    export_df.at[idx, "총점"] = calculate_total_score(export_df.iloc[idx])
+                                
+                                # 시트 이름 정리 (특수문자 제거)
+                                sheet_name = f'작업조건_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                                export_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                        
+                        # 3단계 유해요인평가 데이터 저장
+                        평가_작업명 = st.session_state.get(f"3단계_작업명_{작업명}", 작업명)
+                        평가_근로자수 = st.session_state.get(f"3단계_근로자수_{작업명}", "")
+                        
+                        평가_data = {
+                            "작업명": [평가_작업명],
+                            "근로자수": [평가_근로자수]
+                        }
+                        
+                        # 사진 설명 추가
+                        사진개수 = st.session_state.get(f"사진개수_{작업명}", 3)
+                        for i in range(사진개수):
+                            설명 = st.session_state.get(f"사진_{i+1}_설명_{작업명}", "")
+                            평가_data[f"사진{i+1}_설명"] = [설명]
+                        
+                        if 평가_작업명 or 평가_근로자수:
+                            평가_df = pd.DataFrame(평가_data)
+                            sheet_name = f'유해요인평가_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                            평가_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                        
+                        # 원인분석 데이터 저장 (개선된 버전)
+                        원인분석_key = f"원인분석_항목_{작업명}"
+                        if 원인분석_key in st.session_state:
+                            원인분석_data = []
+                            for item in st.session_state[원인분석_key]:
+                                if item.get("단위작업명") or item.get("유형"):
+                                    원인분석_data.append(item)
+                            
+                            if 원인분석_data:
+                                원인분석_df = pd.DataFrame(원인분석_data)
+                                sheet_name = f'원인분석_{작업명}'.replace('/', '_').replace('\\', '_')[:31]
+                                원인분석_df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    
+                    # 정밀조사 데이터 저장 (조사명별로)
+                    if "정밀조사_목록" in st.session_state and st.session_state["정밀조사_목록"]:
+                        for 조사명 in st.session_state["정밀조사_목록"]:
+                            정밀_data_rows = []
+                            
+                            # 기본 정보
+                            정밀_data_rows.append(["작업공정명", st.session_state.get(f"정밀_작업공정명_{조사명}", "")])
+                            정밀_data_rows.append(["작업명", st.session_state.get(f"정밀_작업명_{조사명}", "")])
+                            정밀_data_rows.append([])  # 빈 행
+                            정밀_data_rows.append(["작업별로 관련된 유해요인에 대한 원인분석"])
+                            정밀_data_rows.append(["작업분석 및 평가도구", "분석결과", "만점"])
+                            
+                            # 원인분석 데이터
+                            원인분석_key = f"정밀_원인분석_data_{조사명}"
+                            if 원인분석_key in st.session_state:
+                                원인분석_df = st.session_state[원인분석_key]
+                                for _, row in 원인분석_df.iterrows():
+                                    if row.get("작업분석 및 평가도구", "") or row.get("분석결과", "") or row.get("만점", ""):
+                                        정밀_data_rows.append([
+                                            row.get("작업분석 및 평가도구", ""),
+                                            row.get("분석결과", ""),
+                                            row.get("만점", "")
+                                        ])
+                            
+                            if len(정밀_data_rows) > 5:  # 헤더 이후에 데이터가 있는 경우만
+                                정밀_sheet_df = pd.DataFrame(정밀_data_rows)
+                                sheet_name = 조사명.replace('/', '_').replace('\\', '_')[:31]
+                                정밀_sheet_df.to_excel(writer, sheet_name=sheet_name, index=False, header=False)
+                    
+                    # 증상조사 분석 데이터 저장
+                    if "기초현황_data_저장" in st.session_state:
+                        기초현황_df = st.session_state["기초현황_data_저장"]
+                        if not 기초현황_df.empty:
+                            기초현황_df.to_excel(writer, sheet_name="증상조사_기초현황", index=False)
+
+                    if "작업기간_data_저장" in st.session_state:
+                        작업기간_df = st.session_state["작업기간_data_저장"]
+                        if not 작업기간_df.empty:
+                            작업기간_df.to_excel(writer, sheet_name="증상조사_작업기간", index=False)
+
+                    if "육체적부담_data_저장" in st.session_state:
+                        육체적부담_df = st.session_state["육체적부담_data_저장"]
+                        if not 육체적부담_df.empty:
+                            육체적부담_df.to_excel(writer, sheet_name="증상조사_육체적부담", index=False)
+
+                    if "통증호소자_data_저장" in st.session_state:
+                        통증호소자_df = st.session_state["통증호소자_data_저장"]
+                        if isinstance(통증호소자_df, pd.DataFrame) and not 통증호소자_df.empty:
+                            통증호소자_df.to_excel(writer, sheet_name="증상조사_통증호소자", index=False)
+                    
+                    # 작업환경개선계획서 데이터 저장
+                    if "개선계획_data_저장" in st.session_state:
+                        개선계획_df = st.session_state["개선계획_data_저장"]
+                        if not 개선계획_df.empty:
+                            # 빈 행 제거 (모든 컬럼이 빈 행 제외)
+                            개선계획_df_clean = 개선계획_df[개선계획_df.astype(str).ne('').any(axis=1)]
+                            if not 개선계획_df_clean.empty:
+                                개선계획_df_clean.to_excel(writer, sheet_name="작업환경개선계획서", index=False)
+                    
+                output.seek(0)
+                st.download_button(
+                    label="📥 Excel 다운로드",
+                    data=output,
+                    file_name=f"근골격계_유해요인조사_{st.session_state.get('workplace', '')}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+                st.success("✅ Excel 보고서가 생성되었습니다!")
+                
+            except Exception as e:
+                st.error(f"Excel 파일 생성 중 오류가 발생했습니다: {str(e)}")
+                st.info("데이터를 입력한 후 다시 시도해주세요.")
     
     with col2:
-        if PDF_AVAILABLE and st.button("📑 PDF로 내보내기", use_container_width=True):
-            st.info("PDF 출력 기능은 추후 업데이트 예정입니다.")
-    
-    # 개선계획 템플릿 다운로드
-    with st.expander("📋 개선계획서 템플릿 다운로드"):
-        템플릿_데이터 = pd.DataFrame({
-            "순번": [1, 2, 3, 4, 5],
-            "작업공정": ["조립라인", "포장라인", "운반작업", "", ""],
-            "유해요인": ["반복동작(2호)", "부자연스러운자세(4호)", "과도한힘(8호)", "", ""],
-            "개선방법": ["자동화 설비 도입", "작업대 높이 조정", "리프트 설치", "", ""],
-            "개선시기": ["2024년 3월", "2024년 2월", "2024년 4월", "", ""],
-            "소요예산": ["50,000천원", "5,000천원", "30,000천원", "", ""],
-            "담당부서": ["생산팀", "생산팀", "물류팀", "", ""],
-            "비고": ["예산 승인 필요", "즉시 시행 가능", "공간 확보 필요", "", ""]
-        })
-        
-        st.dataframe(템플릿_데이터, use_container_width=True)
-        
-        템플릿_output = BytesIO()
-        with pd.ExcelWriter(템플릿_output, engine='openpyxl') as writer:
-            템플릿_데이터.to_excel(writer, sheet_name='개선계획서_템플릿', index=False)
-        
-        템플릿_output.seek(0)
-        st.download_button(
-            label="📥 템플릿 다운로드",
-            data=템플릿_output,
-            file_name="개선계획서_템플릿.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        # PDF 보고서 생성 버튼 (기존 코드와 동일)
+        if PDF_AVAILABLE:
+            if st.button("📄 PDF 보고서 생성", use_container_width=True):
+                try:
+                    # 한글 폰트 설정 - 나눔고딕 우선
+                    font_paths = [
+                        "C:/Windows/Fonts/NanumGothic.ttf",
+                        "C:/Windows/Fonts/NanumBarunGothic.ttf",
+                        "C:/Windows/Fonts/malgun.ttf",
+                        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",  # Linux
+                        "/System/Library/Fonts/Supplemental/NanumGothic.ttf"  # Mac
+                    ]
+                    
+                    font_registered = False
+                    for font_path in font_paths:
+                        if os.path.exists(font_path):
+                            if "NanumGothic" in font_path:
+                                pdfmetrics.registerFont(TTFont('NanumGothic', font_path))
+                                font_name = 'NanumGothic'
+                            elif "NanumBarunGothic" in font_path:
+                                pdfmetrics.registerFont(TTFont('NanumBarunGothic', font_path))
+                                font_name = 'NanumBarunGothic'
+                            else:
+                                pdfmetrics.registerFont(TTFont('Malgun', font_path))
+                                font_name = 'Malgun'
+                            font_registered = True
+                            break
+                    
+                    if not font_registered:
+                        font_name = 'Helvetica'
+                    
+                    # PDF 생성
+                    pdf_buffer = BytesIO()
+                    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+                    story = []
+                    
+                    # 스타일 설정 - 글꼴 크기 증가
+                    styles = getSampleStyleSheet()
+                    title_style = ParagraphStyle(
+                        'CustomTitle',
+                        parent=styles['Heading1'],
+                        fontSize=28,  # 24에서 28로 증가
+                        textColor=colors.HexColor('#1f4788'),
+                        alignment=TA_CENTER,
+                        fontName=font_name,
+                        spaceAfter=30
+                    )
+                    
+                    heading_style = ParagraphStyle(
+                        'CustomHeading',
+                        parent=styles['Heading2'],
+                        fontSize=18,  # 16에서 18로 증가
+                        textColor=colors.HexColor('#2e5090'),
+                        fontName=font_name,
+                        spaceAfter=12
+                    )
+                    
+                    subheading_style = ParagraphStyle(
+                        'CustomSubHeading',
+                        parent=styles['Heading3'],
+                        fontSize=14,  # 새로 추가
+                        textColor=colors.HexColor('#3a5fa0'),
+                        fontName=font_name,
+                        spaceAfter=10
+                    )
+                    
+                    normal_style = ParagraphStyle(
+                        'CustomNormal',
+                        parent=styles['Normal'],
+                        fontSize=12,  # 10에서 12로 증가
+                        fontName=font_name,
+                        leading=14
+                    )
+                    
+                    # 제목 페이지
+                    story.append(Spacer(1, 1.5*inch))
+                    story.append(Paragraph("근골격계 유해요인조사 보고서", title_style))
+                    story.append(Spacer(1, 0.5*inch))
+                    
+                    # 사업장 정보
+                    if st.session_state.get("사업장명"):
+                        사업장정보 = f"""
+                        <para align="center" fontSize="14">
+                        <b>사업장명:</b> {st.session_state.get("사업장명", "")}<br/>
+                        <b>작업현장:</b> {st.session_state.get("workplace", "")}<br/>
+                        <b>조사일:</b> {datetime.now().strftime('%Y년 %m월 %d일')}
+                        </para>
+                        """
+                        story.append(Paragraph(사업장정보, normal_style))
+                    
+                    story.append(PageBreak())
+                    
+                    # 1. 사업장 개요
+                    story.append(Paragraph("1. 사업장 개요", heading_style))
+                    
+                    사업장_data = [
+                        ["항목", "내용"],
+                        ["사업장명", st.session_state.get("사업장명", "")],
+                        ["소재지", st.session_state.get("소재지", "")],
+                        ["업종", st.session_state.get("업종", "")],
+                        ["예비조사일", str(st.session_state.get("예비조사", ""))],
+                        ["본조사일", str(st.session_state.get("본조사", ""))],
+                        ["수행기관", st.session_state.get("수행기관", "")],
+                        ["담당자", st.session_state.get("성명", "")]
+                    ]
+                    
+                    t = Table(사업장_data, colWidths=[2*inch, 4*inch])
+                    t.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, -1), font_name),
+                        ('FONTSIZE', (0, 0), (-1, -1), 12),  # 10에서 12로 증가
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                        ('BACKGROUND', (0, 1), (0, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ]))
+                    story.append(t)
+                    story.append(Spacer(1, 0.5*inch))
+                    
+                    # PDF 생성 (나머지 부분 생략 - 기존 코드와 동일)
+                    doc.build(story)
+                    pdf_buffer.seek(0)
+                    
+                    # 다운로드 버튼
+                    st.download_button(
+                        label="📥 PDF 다운로드",
+                        data=pdf_buffer,
+                        file_name=f"근골격계유해요인조사보고서_{st.session_state.get('workplace', '')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf"
+                    )
+                    
+                    st.success("PDF 보고서가 생성되었습니다!")
+                    
+                except Exception as e:
+                    error_message = "PDF 생성 중 오류가 발생했습니다: " + str(e)
+                    st.error(error_message)
+                    st.info("reportlab 라이브러리를 설치해주세요: pip install reportlab")
+        else:
+            st.info("PDF 생성 기능을 사용하려면 reportlab 라이브러리를 설치하세요: pip install reportlab")
