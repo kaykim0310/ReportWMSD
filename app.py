@@ -1202,4 +1202,152 @@ with tabs[3]:
                         # 총 작업시간(분) 자동 계산
                         calculated_total_work_time = 0.0
                         try:
-                            parsed_회당_반복시간 = parse_value
+                            parsed_회당_반복시간 = parse_value(회당_반복시간_초_회, val_type=float)
+                            parsed_작업시간동안_반복횟수 = parse_value(작업시간동안_반복횟수_회_일, val_type=float)
+                            
+                            if parsed_회당_반복시간 > 0 and parsed_작업시간동안_반복횟수 > 0:
+                                calculated_total_work_time = (parsed_회당_반복시간 * parsed_작업시간동안_반복횟수) / 60
+                        except Exception:
+                            pass
+                        
+                        hazard_entry["총 작업시간(분)"] = st.text_input(
+                            f"[{k+1}] 총 작업시간(분) (자동계산)",
+                            value=f"{calculated_total_work_time:.2f}" if calculated_total_work_time > 0 else "",
+                            key=f"반복_총시간_{k}_{selected_작업명}",
+                            disabled=True
+                        )
+                    
+                    # 값 저장
+                    hazard_entry["회당 반복시간(초/회)"] = 회당_반복시간_초_회
+                    hazard_entry["작업시간동안 반복횟수(회/일)"] = 작업시간동안_반복횟수_회_일
+
+                    # 10호 추가 필드
+                    if "(10호)" in hazard_entry["부담작업"]:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            hazard_entry["물체 무게(kg)_10호"] = st.number_input(f"[{k+1}] (10호)물체 무게(kg)", value=hazard_entry.get("물체 무게(kg)_10호", 0.0), key=f"물체_무게_10호_{k}_{selected_작업명}")
+                        with col2:
+                            hazard_entry["분당 반복횟수(회/분)_10호"] = st.text_input(f"[{k+1}] (10호)분당 반복횟수(회/분)", value=hazard_entry.get("분당 반복횟수(회/분)_10호", ""), key=f"분당_반복횟수_10호_{k}_{selected_작업명}")
+
+                    # 12호 정적자세 관련 필드
+                    if "(12호)정적자세" in hazard_entry["부담작업"]:
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            hazard_entry["작업내용_12호_정적"] = st.text_input(f"[{k+1}] (정지자세)작업내용", value=hazard_entry.get("작업내용_12호_정적", ""), key=f"반복_작업내용_12호_정적_{k}_{selected_작업명}")
+                        with col2:
+                            hazard_entry["작업시간(분)_12호_정적"] = st.number_input(f"[{k+1}] (정지자세)작업시간(분)", value=hazard_entry.get("작업시간(분)_12호_정적", 0), key=f"반복_작업시간_12호_정적_{k}_{selected_작업명}")
+                        with col3:
+                            hazard_entry["휴식시간(분)_12호_정적"] = st.number_input(f"[{k+1}] (정지자세)휴식시간(분)", value=hazard_entry.get("휴식시간(분)_12호_정적", 0), key=f"반복_휴식시간_12호_정적_{k}_{selected_작업명}")
+                        with col4:
+                            hazard_entry["인체부담부위_12호_정적"] = st.text_input(f"[{k+1}] (정지자세)인체부담부위", value=hazard_entry.get("인체부담부위_12호_정적", ""), key=f"반복_인체부담부위_12호_정적_{k}_{selected_작업명}")
+
+                elif hazard_entry["유형"] == "부자연스러운 자세":
+                    burden_pose_options = [
+                        "",
+                        "(3호)하루에 총 2시간 이상 머리 위에 손이 있거나, 팔꿈치가 어깨위에 있거나, 팔꿈치를 몸통으로부터 들거나, 팔꿈치를 몸통뒤쪽에 위치하도록 하는 상태에서 이루어지는 작업",
+                        "(4호)지지되지 않은 상태이거나 임의로 자세를 바꿀 수 없는 조건에서, 하루에 총 2시간 이상 목이나 허리를 구부리거나 트는 상태에서 이루어지는 작업",
+                        "(5호)하루에 총 2시간 이상 쪼그리고 앉거나 무릎을 굽힌 자세에서 이루어지는 작업"
+                    ]
+                    selected_burden_pose_index = burden_pose_options.index(hazard_entry.get("부담작업", "")) if hazard_entry.get("부담작업", "") in burden_pose_options else 0
+                    hazard_entry["부담작업"] = st.selectbox(f"[{k+1}] 부담작업", burden_pose_options, index=selected_burden_pose_index, key=f"burden_pose_{k}_{selected_작업명}")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        hazard_entry["회당 반복시간(초/회)"] = st.text_input(f"[{k+1}] 회당 반복시간(초/회)", value=hazard_entry.get("회당 반복시간(초/회)", ""), key=f"자세_회당시간_{k}_{selected_작업명}")
+                    with col2:
+                        hazard_entry["작업시간동안 반복횟수(회/일)"] = st.text_input(f"[{k+1}] 작업시간동안 반복횟수(회/일)", value=hazard_entry.get("작업시간동안 반복횟수(회/일)", ""), key=f"자세_총횟수_{k}_{selected_작업명}")
+                    with col3:
+                        hazard_entry["총 작업시간(분)"] = st.text_input(f"[{k+1}] 총 작업시간(분)", value=hazard_entry.get("총 작업시간(분)", ""), key=f"자세_총시간_{k}_{selected_작업명}")
+
+                elif hazard_entry["유형"] == "과도한 힘":
+                    burden_force_options = [
+                        "",
+                        "(8호)하루에 10회 이상 25kg 이상의 물체를 드는 작업",
+                        "(9호)하루에 25회 이상 10kg 이상의 물체를 무릎 아래에서 들거나, 어깨 위에서 들거나, 팔을 뻗은 상태에서 드는 작업",
+                        "(12호)밀기/당기기 작업",
+                        "(8호)하루에 10회 이상 25kg 이상의 물체를 드는 작업+(12호)밀기/당기기 작업",
+                        "(9호)하루에 25회 이상 10kg 이상의 물체를 무릎 아래에서 들거나, 어깨 위에서 들거나, 팔을 뻗은 상태에서 드는 작업+(12호)밀기/당기기 작업"
+                    ]
+                    selected_burden_force_index = burden_force_options.index(hazard_entry.get("부담작업", "")) if hazard_entry.get("부담작업", "") in burden_force_options else 0
+                    hazard_entry["부담작업"] = st.selectbox(f"[{k+1}] 부담작업", burden_force_options, index=selected_burden_force_index, key=f"burden_force_{k}_{selected_작업명}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        hazard_entry["중량물 명칭"] = st.text_input(f"[{k+1}] 중량물 명칭", value=hazard_entry.get("중량물 명칭", ""), key=f"힘_중량물_명칭_{k}_{selected_작업명}")
+                    with col2:
+                        hazard_entry["중량물 용도"] = st.text_input(f"[{k+1}] 중량물 용도", value=hazard_entry.get("중량물 용도", ""), key=f"힘_중량물_용도_{k}_{selected_작업명}")
+                    
+                    # 취급방법
+                    취급방법_options = ["", "직접 취급", "크레인 사용"]
+                    selected_취급방법_index = 취급방법_options.index(hazard_entry.get("취급방법", "")) if hazard_entry.get("취급방법", "") in 취급방법_options else 0
+                    hazard_entry["취급방법"] = st.selectbox(f"[{k+1}] 취급방법", 취급방법_options, index=selected_취급방법_index, key=f"힘_취급방법_{k}_{selected_작업명}")
+
+                    # 중량물 이동방법 (취급방법이 "직접 취급"인 경우만 해당)
+                    if hazard_entry["취급방법"] == "직접 취급":
+                        이동방법_options = ["", "1인 직접이동", "2인1조 직접이동", "여러명 직접이동", "이동대차(인력이동)", "이동대차(전력이동)", "지게차"]
+                        selected_이동방법_index = 이동방법_options.index(hazard_entry.get("중량물 이동방법", "")) if hazard_entry.get("중량물 이동방법", "") in 이동방법_options else 0
+                        hazard_entry["중량물 이동방법"] = st.selectbox(f"[{k+1}] 중량물 이동방법", 이동방법_options, index=selected_이동방법_index, key=f"힘_이동방법_{k}_{selected_작업명}")
+                        
+                        # 이동대차(인력이동) 선택 시 추가 드롭다운
+                        if hazard_entry["중량물 이동방법"] == "이동대차(인력이동)":
+                            직접_밀당_options = ["", "작업자가 직접 바퀴달린 이동대차를 밀고/당기기", "자동이동대차(AGV)", "기타"]
+                            selected_직접_밀당_index = 직접_밀당_options.index(hazard_entry.get("작업자가 직접 밀고/당기기", "")) if hazard_entry.get("작업자가 직접 밀고/당기기", "") in 직접_밀당_options else 0
+                            hazard_entry["작업자가 직접 밀고/당기기"] = st.selectbox(f"[{k+1}] 작업자가 직접 밀고/당기기", 직접_밀당_options, index=selected_직접_밀당_index, key=f"힘_직접_밀당_{k}_{selected_작업명}")
+                            # '기타' 선택 시 설명 적는 난 추가
+                            if hazard_entry["작업자가 직접 밀고/당기기"] == "기타":
+                                hazard_entry["기타_밀당_설명"] = st.text_input(f"[{k+1}] 기타 밀기/당기기 설명", value=hazard_entry.get("기타_밀당_설명", ""), key=f"힘_기타_밀당_설명_{k}_{selected_작업명}")
+
+                    # 8호, 9호 관련 필드 (밀기/당기기가 아닌 경우)
+                    if "(8호)" in hazard_entry["부담작업"] and "(12호)" not in hazard_entry["부담작업"]:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            hazard_entry["중량물 무게(kg)"] = st.number_input(f"[{k+1}] 중량물 무게(kg)", value=hazard_entry.get("중량물 무게(kg)", 0.0), key=f"중량물_무게_{k}_{selected_작업명}")
+                        with col2:
+                            hazard_entry["작업시간동안 작업횟수(회/일)"] = st.text_input(f"[{k+1}] 작업시간동안 작업횟수(회/일)", value=hazard_entry.get("작업시간동안 작업횟수(회/일)", ""), key=f"힘_총횟수_{k}_{selected_작업명}")
+                    
+                    elif "(9호)" in hazard_entry["부담작업"] and "(12호)" not in hazard_entry["부담작업"]:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            hazard_entry["중량물 무게(kg)"] = st.number_input(f"[{k+1}] 중량물 무게(kg)", value=hazard_entry.get("중량물 무게(kg)", 0.0), key=f"중량물_무게_{k}_{selected_작업명}")
+                        with col2:
+                            hazard_entry["작업시간동안 작업횟수(회/일)"] = st.text_input(f"[{k+1}] 작업시간동안 작업횟수(회/일)", value=hazard_entry.get("작업시간동안 작업횟수(회/일)", ""), key=f"힘_총횟수_{k}_{selected_작업명}")
+                    
+                    # 12호 밀기/당기기 관련 필드
+                    if "(12호)밀기/당기기" in hazard_entry["부담작업"]:
+                        st.markdown("##### (12호) 밀기/당기기 세부 정보")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            hazard_entry["대차 무게(kg)_12호"] = st.number_input(f"[{k+1}] 대차 무게(kg)", value=hazard_entry.get("대차 무게(kg)_12호", 0.0), key=f"대차_무게_12호_{k}_{selected_작업명}")
+                        with col2:
+                            hazard_entry["대차위 제품무게(kg)_12호"] = st.number_input(f"[{k+1}] 대차위 제품무게(kg)", value=hazard_entry.get("대차위 제품무게(kg)_12호", 0.0), key=f"대차위_제품무게_12호_{k}_{selected_작업명}")
+                        with col3:
+                            hazard_entry["밀고-당기기 빈도(회/일)_12호"] = st.text_input(f"[{k+1}] 밀고-당기기 빈도(회/일)", value=hazard_entry.get("밀고-당기기 빈도(회/일)_12호", ""), key=f"밀고당기기_빈도_12호_{k}_{selected_작업명}")
+
+                elif hazard_entry["유형"] == "접촉스트레스 또는 기타(진동, 밀고 당기기 등)":
+                    burden_other_options = [
+                        "",
+                        "(11호)하루에 총 2시간 이상 시간당 10회 이상 손 또는 무릎을 사용하여 반복적으로 충격을 가하는 작업",
+                        "(12호)진동작업(그라인더, 임팩터 등)"
+                    ]
+                    selected_burden_other_index = burden_other_options.index(hazard_entry.get("부담작업", "")) if hazard_entry.get("부담작업", "") in burden_other_options else 0
+                    hazard_entry["부담작업"] = st.selectbox(f"[{k+1}] 부담작업", burden_other_options, index=selected_burden_other_index, key=f"burden_other_{k}_{selected_작업명}")
+
+                    if hazard_entry["부담작업"] == "(11호)하루에 총 2시간 이상 시간당 10회 이상 손 또는 무릎을 사용하여 반복적으로 충격을 가하는 작업":
+                        hazard_entry["작업시간(분)"] = st.text_input(f"[{k+1}] 작업시간(분)", value=hazard_entry.get("작업시간(분)", ""), key=f"기타_작업시간_{k}_{selected_작업명}")
+
+                    if hazard_entry["부담작업"] == "(12호)진동작업(그라인더, 임팩터 등)":
+                        st.markdown("##### (12호) 진동작업 세부 정보")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            hazard_entry["진동수공구명"] = st.text_input(f"[{k+1}] 진동수공구명", value=hazard_entry.get("진동수공구명", ""), key=f"기타_진동수공구명_{k}_{selected_작업명}")
+                            hazard_entry["작업시간(분)_진동"] = st.text_input(f"[{k+1}] 작업시간(분)", value=hazard_entry.get("작업시간(분)_진동", ""), key=f"기타_작업시간_진동_{k}_{selected_작업명}")
+                            hazard_entry["작업량(회/일)_진동"] = st.text_input(f"[{k+1}] 작업량(회/일)", value=hazard_entry.get("작업량(회/일)_진동", ""), key=f"기타_작업량_진동_{k}_{selected_작업명}")
+                        with col2:
+                            hazard_entry["진동수공구 용도"] = st.text_input(f"[{k+1}] 진동수공구 용도", value=hazard_entry.get("진동수공구 용도", ""), key=f"기타_진동수공구_용도_{k}_{selected_작업명}")
+                            hazard_entry["작업빈도(초/회)_진동"] = st.text_input(f"[{k+1}] 작업빈도(초/회)", value=hazard_entry.get("작업빈도(초/회)_진동", ""), key=f"기타_작업빈도_진동_{k}_{selected_작업명}")
+                            
+                            지지대_options = ["", "예", "아니오"]
+                            selected_지지대_index = 지지대_options.index(hazard_entry.get("수공구사용시 지지대가 있는가?", "")) if hazard_entry.get("수공구사용시 지지대가 있는가?", "") in 지지대_options else 0
+                            hazard_entry["수공구사용시 지지대가 있는가?"] = st.selectbox(f"[{k+1}] 수공구사용시 지지대가 있는가?", 지지대_options, index=selected_지지대_index, key=f"기타_지지대_여부_{k}_{selected_작업명}")
+                
+                st.markdown("---")
