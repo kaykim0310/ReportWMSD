@@ -746,7 +746,7 @@ with tabs[2]:
             if selected_팀 == "전체":
                 selected_팀 = None
         else:
-            st.selectbox("팀 선택", ["사업장을 먼저 선택하세요"], disabled=True)
+            st.selectbox("팀 선택", ["사업장을 먼저 선택하세요"], disabled=True, key="유해요인_팀_disabled")
             selected_팀 = None
     
     with col3:
@@ -760,7 +760,7 @@ with tabs[2]:
             if selected_반 == "전체":
                 selected_반 = None
         else:
-            st.selectbox("반 선택", ["팀을 먼저 선택하세요"], disabled=True)
+            st.selectbox("반 선택", ["팀을 먼저 선택하세요"], disabled=True, key="유해요인_반_disabled")
             selected_반 = None
     
     with col4:
@@ -776,7 +776,7 @@ with tabs[2]:
                 st.warning("해당 조건에 맞는 작업이 없습니다.")
                 selected_작업명_유해 = None
         else:
-            st.selectbox("작업명 선택", ["사업장을 먼저 선택하세요"], disabled=True)
+            st.selectbox("작업명 선택", ["사업장을 먼저 선택하세요"], disabled=True, key="유해요인_작업명_disabled")
             selected_작업명_유해 = None
     
     if selected_작업명_유해:
@@ -863,7 +863,7 @@ with tabs[3]:
             if selected_팀_조건 == "전체":
                 selected_팀_조건 = None
         else:
-            st.selectbox("팀 선택", ["사업장을 먼저 선택하세요"], disabled=True)
+            st.selectbox("팀 선택", ["사업장을 먼저 선택하세요"], disabled=True, key="작업조건_팀_disabled")
             selected_팀_조건 = None
     
     with col3:
@@ -877,7 +877,7 @@ with tabs[3]:
             if selected_반_조건 == "전체":
                 selected_반_조건 = None
         else:
-            st.selectbox("반 선택", ["팀을 먼저 선택하세요"], disabled=True)
+            st.selectbox("반 선택", ["팀을 먼저 선택하세요"], disabled=True, key="작업조건_반_disabled")
             selected_반_조건 = None
     
     with col4:
@@ -893,7 +893,7 @@ with tabs[3]:
                 st.warning("해당 조건에 맞는 작업이 없습니다.")
                 selected_작업명 = None
         else:
-            st.selectbox("작업명 선택", ["사업장을 먼저 선택하세요"], disabled=True)
+            st.selectbox("작업명 선택", ["사업장을 먼저 선택하세요"], disabled=True, key="작업조건_작업명_disabled")
             selected_작업명 = None
     
     if selected_작업명:
