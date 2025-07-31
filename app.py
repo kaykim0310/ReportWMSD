@@ -461,9 +461,11 @@ with tabs[1]:
     with st.expander("📤 엑셀 파일 업로드"):
         st.info("""
         📌 엑셀 파일 양식:
-        - 첫 번째 열: 작업명
-        - 두 번째 열: 단위작업명
-        - 3~14번째 열: 1호~12호 (O(해당), △(잠재위험), X(미해당) 중 입력)
+        - 첫 번째 열: 팀
+        - 두 번째 열: 반
+        - 세 번째 열: 작업명
+        - 네 번째 열: 단위작업명
+        - 5~16번째 열: 1호~12호 (O(해당), △(잠재위험), X(미해당) 중 입력)
         """)
         
         uploaded_excel = st.file_uploader("엑셀 파일 선택", type=['xlsx', 'xls'])
@@ -474,18 +476,18 @@ with tabs[1]:
                 df_excel = pd.read_excel(uploaded_excel)
                 
                 # 컬럼명 확인 및 조정
-                expected_columns = ["작업명", "단위작업명"] + [f"{i}호" for i in range(1, 13)]
+                expected_columns = ["팀", "반", "작업명", "단위작업명"] + [f"{i}호" for i in range(1, 13)]
                 
                 # 컬럼 개수가 맞는지 확인
-                if len(df_excel.columns) >= 14:
+                if len(df_excel.columns) >= 16:
                     # 컬럼명 재설정
                     df_excel.columns = expected_columns[:len(df_excel.columns)]
                     
                     # 값 검증 (O(해당), △(잠재위험), X(미해당)만 허용)
                     valid_values = ["O(해당)", "△(잠재위험)", "X(미해당)"]
                     
-                    # 3번째 열부터 14번째 열까지 검증
-                    for col in expected_columns[2:]:
+                    # 5번째 열부터 16번째 열까지 검증
+                    for col in expected_columns[4:]:
                         if col in df_excel.columns:
                             # 유효하지 않은 값은 X(미해당)으로 변경
                             df_excel[col] = df_excel[col].apply(
@@ -514,7 +516,7 @@ with tabs[1]:
                         st.dataframe(df_excel)
                     
                 else:
-                    st.error("⚠️ 엑셀 파일의 컬럼이 14개 이상이어야 합니다. (작업명, 단위작업명, 1호~12호)")
+                    st.error("⚠️ 엑셀 파일의 컬럼이 16개 이상이어야 합니다. (팀, 반, 작업명, 단위작업명, 1호~12호)")
                     
             except Exception as e:
                 st.error(f"❌ 파일 읽기 오류: {str(e)}")
@@ -523,6 +525,8 @@ with tabs[1]:
     with st.expander("📥 샘플 엑셀 파일 다운로드"):
         # 샘플 데이터 생성
         sample_data = pd.DataFrame({
+            "팀": ["생산1팀", "생산1팀", "생산2팀", "생산2팀", "물류팀"],
+            "반": ["조립1반", "조립1반", "포장1반", "포장1반", "운반1반"],
             "작업명": ["조립작업", "조립작업", "포장작업", "포장작업", "운반작업"],
             "단위작업명": ["부품조립", "나사체결", "제품포장", "박스적재", "대차운반"],
             "1호": ["O(해당)", "X(미해당)", "X(미해당)", "O(해당)", "X(미해당)"],
@@ -539,6 +543,10 @@ with tabs[1]:
             "12호": ["X(미해당)", "△(잠재위험)", "O(해당)", "X(미해당)", "X(미해당)"]
         })
         
+        # 샘플 데이터 표시
+        st.markdown("##### 샘플 데이터 구조:")
+        st.dataframe(sample_data, use_container_width=True)
+        
         # 엑셀 파일로 변환
         sample_output = BytesIO()
         with pd.ExcelWriter(sample_output, engine='openpyxl') as writer:
@@ -552,24 +560,26 @@ with tabs[1]:
             file_name="체크리스트_샘플.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        
-        st.markdown("##### 샘플 데이터 구조:")
-        st.dataframe(sample_data)
     
     st.markdown("---")
     
     # 기존 데이터 편집기
     columns = [
-        "작업명", "단위작업명"
+        "팀", "반", "작업명", "단위작업명"
     ] + [f"{i}호" for i in range(1, 13)]
     
     # 세션 상태에 저장된 데이터가 있으면 사용, 없으면 빈 데이터
     if not st.session_state["checklist_df"].empty:
         data = st.session_state["checklist_df"]
+        # 기존 데이터에 팀, 반 컬럼이 없으면 추가
+        if "팀" not in data.columns:
+            data.insert(0, "팀", "")
+        if "반" not in data.columns:
+            data.insert(1, "반", "")
     else:
         data = pd.DataFrame(
             columns=columns,
-            data=[["", ""] + ["X(미해당)"]*12 for _ in range(5)]
+            data=[["", "", "", ""] + ["X(미해당)"]*12 for _ in range(5)]
         )
 
     ho_options = [
@@ -582,6 +592,8 @@ with tabs[1]:
             f"{i}호", options=ho_options, required=True
         ) for i in range(1, 13)
     }
+    column_config["팀"] = st.column_config.TextColumn("팀")
+    column_config["반"] = st.column_config.TextColumn("반")
     column_config["작업명"] = st.column_config.TextColumn("작업명")
     column_config["단위작업명"] = st.column_config.TextColumn("단위작업명")
 
